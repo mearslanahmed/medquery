@@ -1,81 +1,550 @@
-<link href="//maxcdn.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
-<script src="//maxcdn.bootstrapcdn.com/bootstrap/4.1.1/js/bootstrap.min.js"></script>
-<script src="//cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
-
 <!DOCTYPE html>
-<html>
-	<head>
-		<title>Chatbot</title>
-		<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
-		<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.5.0/css/all.css" integrity="sha384-B4dIYHKNBt8Bc12p+WXckhzcICo0wtJAoU8YZTY5qE0Id1GSseTk6S+L3BlXeVIU" crossorigin="anonymous">
-		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
-		<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css')}}"/>
-	</head>
-	
-	
-	<body>
-		<div class="container-fluid h-100">
-			<div class="row justify-content-center h-100">		
-				<div class="col-md-8 col-xl-6 chat">
-					<div class="card">
-						<div class="card-header msg_head">
-							<div class="d-flex bd-highlight">
-								<div class="img_cont">
-									<img src="https://cdn-icons-png.flaticon.com/512/387/387569.png" class="rounded-circle user_img">
-									<!-- <img src="https://www.prdistribution.com/spirit/uploads/pressreleases/2019/newsreleases/d83341deb75c4c4f6b113f27b1e42cd8-chatbot-florence-already-helps-thousands-of-patients-to-remember-their-medication.png" class="rounded-circle user_img"> -->
-									<span class="online_icon"></span>
-								</div>
-								<div class="user_info">
-									<span>Medical Chatbot</span>
-									<p>Ask me anything!</p>
-								</div>
-							</div>
-						</div>
-						<div id="messageFormeight" class="card-body msg_card_body">
-							
-							
-						</div>
-						<div class="card-footer">
-							<form id="messageArea" class="input-group">
-                                <input type="text" id="text" name="msg" placeholder="Type your message..." autocomplete="off" class="form-control type_msg" required/>
-								<div class="input-group-append">
-									<button type="submit" id="send" class="input-group-text send_btn"><i class="fas fa-location-arrow"></i></button>
-								</div>
-							</form>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-		
-		<script>
-			$(document).ready(function() {
-				$("#messageArea").on("submit", function(event) {
-					const date = new Date();
-					const hour = date.getHours();
-					const minute = date.getMinutes();
-					const str_time = hour+":"+minute;
-					var rawText = $("#text").val();
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedQuery — Health Assistant</title>
+    
+    <!-- Lucide Icons & Marked for Markdown -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="app-wrapper">
+        <!-- Minimal Sidebar -->
+        <aside class="app-sidebar" id="sidebar">
+            <div>
+                <div class="sidebar-brand">
+                    <div class="brand-icon-health">
+                        <i data-lucide="heart" style="width: 16px; height: 16px;"></i>
+                    </div>
+                    <span class="brand-title">MedQuery</span>
+                </div>
 
-					var userHtml = '<div class="d-flex justify-content-end mb-4"><div class="msg_cotainer_send">' + rawText + '<span class="msg_time_send">'+ str_time + '</span></div><div class="img_cont_msg"><img src="https://i.ibb.co/d5b84Xw/Untitled-design.png" class="rounded-circle user_img_msg"></div></div>';
-					
-					$("#text").val("");
-					$("#messageFormeight").append(userHtml);
+                <button class="btn-new-consultation" id="btnNewChat">
+                    <i data-lucide="plus" style="width: 15px; height: 15px;"></i>
+                    <span>New Consultation</span>
+                </button>
 
-					$.ajax({
-						data: {
-							msg: rawText,	
-						},
-						type: "POST",
-						url: "/get",
-					}).done(function(data) {
-						var botHtml = '<div class="d-flex justify-content-start mb-4"><div class="img_cont_msg"><img src="https://cdn-icons-png.flaticon.com/512/387/387569.png" class="rounded-circle user_img_msg"></div><div class="msg_cotainer">' + data + '<span class="msg_time">' + str_time + '</span></div></div>';
-						$("#messageFormeight").append($.parseHTML(botHtml));
-					});
-					event.preventDefault();
-				});
-			});
-		</script>
-        
-    </body>
+                <div class="history-scroll">
+                    <div class="history-heading">Recent</div>
+                    <ul class="history-items-list" id="historyList">
+                        <!-- Filled by JS -->
+                    </ul>
+                </div>
+            </div>
+
+            <div class="sidebar-status-pane">
+                <div class="status-badge">
+                    <div class="status-dot-green"></div>
+                    <span>Pinecone Medical Index</span>
+                </div>
+                <div class="status-badge">
+                    <i data-lucide="cpu" style="width: 12px; height: 12px;"></i>
+                    <span>Gemini 1.5 Flash</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Health Workspace -->
+        <main class="app-main">
+            <!-- Apple Style Navigation Bar -->
+            <header class="top-navigation">
+                <div class="nav-left-group">
+                    <button class="btn-menu-toggle" id="btnToggleSidebar" aria-label="Toggle Navigation">
+                        <i data-lucide="menu" style="width: 18px; height: 18px;"></i>
+                    </button>
+                    <span class="header-badge">Clinical Reference</span>
+                </div>
+
+                <div class="nav-actions-group">
+                    <button class="apple-icon-button" id="btnExport" title="Export Consultation">
+                        <i data-lucide="arrow-down-to-line" style="width: 16px; height: 16px;"></i>
+                    </button>
+                    <button class="apple-icon-button" id="btnThemeToggle" title="Toggle Appearance">
+                        <i data-lucide="moon" id="themeIcon" style="width: 16px; height: 16px;"></i>
+                    </button>
+                    <button class="apple-icon-button" id="btnClearChat" title="Clear Chat">
+                        <i data-lucide="trash" style="width: 16px; height: 16px;"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Chat Viewport -->
+            <div class="chat-viewport" id="chatContainer">
+                <!-- Clean Apple Health Empty State -->
+                <div class="empty-state-welcome" id="welcomeHero">
+                    <div class="apple-heart-symbol">
+                        <i data-lucide="activity" style="width: 24px; height: 24px;"></i>
+                    </div>
+                    <h2>Medical Reference</h2>
+                    <p>Ask health questions grounded in medical literature and vector clinical indexes.</p>
+
+                    <div class="suggested-topics-grid">
+                        <div class="health-topic-card" data-prompt="What is acne vulgaris and what are the standard medical treatments?">
+                            <span class="topic-label">Acne Vulgaris</span>
+                            <span class="topic-description">Causes, severity grades, and standard treatments</span>
+                        </div>
+                        <div class="health-topic-card" data-prompt="What are the differences and clinical indications between Ibuprofen and Paracetamol?">
+                            <span class="topic-label">Ibuprofen vs Paracetamol</span>
+                            <span class="topic-description">Indications, dosage considerations, and cautions</span>
+                        </div>
+                        <div class="health-topic-card" data-prompt="What are the key symptoms and diagnostic thresholds for Hypertension?">
+                            <span class="topic-label">Hypertension</span>
+                            <span class="topic-description">Diagnostic ranges, symptoms, and lifestyle guidance</span>
+                        </div>
+                        <div class="health-topic-card" data-prompt="What are the essential first-aid steps for minor thermal and chemical burns?">
+                            <span class="topic-label">Burn First Aid</span>
+                            <span class="topic-description">Immediate treatment steps and warning signs</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Apple Pill Input Bar -->
+            <div class="input-dock-wrapper">
+                <div id="chatInputBar" class="apple-input-bar">
+                    <button type="button" class="action-icon-button" id="btnVoice" title="Dictate">
+                        <i data-lucide="mic" id="micIcon" style="width: 16px; height: 16px;"></i>
+                    </button>
+                    <textarea 
+                        id="userInput" 
+                        class="apple-textarea" 
+                        placeholder="Search or ask a clinical question..." 
+                        rows="1"
+                    ></textarea>
+                    <button type="button" class="action-icon-button btn-send-message" id="btnSend" onclick="sendMessage()" title="Send">
+                        <i data-lucide="arrow-up" style="width: 15px; height: 15px;"></i>
+                    </button>
+                </div>
+                <div class="subtle-disclaimer">
+                    For informational and educational reference only. Consult a healthcare provider for diagnosis and treatment.
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        marked.setOptions({ breaks: true, gfm: true });
+        lucide.createIcons();
+
+        const chatContainer = document.getElementById('chatContainer');
+        const welcomeHero = document.getElementById('welcomeHero');
+        const userInput = document.getElementById('userInput');
+        const btnSend = document.getElementById('btnSend');
+        const btnNewChat = document.getElementById('btnNewChat');
+        const btnClearChat = document.getElementById('btnClearChat');
+        const btnThemeToggle = document.getElementById('btnThemeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const btnVoice = document.getElementById('btnVoice');
+        const btnToggleSidebar = document.getElementById('btnToggleSidebar');
+        const sidebar = document.getElementById('sidebar');
+        const historyList = document.getElementById('historyList');
+        const btnExport = document.getElementById('btnExport');
+
+        let chatHistory = JSON.parse(localStorage.getItem('medquery_history') || '[]');
+        let currentMessages = [];
+
+        function renderHistory() {
+            historyList.innerHTML = '';
+            if (chatHistory.length === 0) {
+                historyList.innerHTML = '<li style="color: var(--text-muted); font-size: 0.78rem; padding: 0.4rem 0.5rem;">No recent questions</li>';
+                return;
+            }
+            chatHistory.slice(-10).reverse().forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'history-item-row';
+                li.textContent = item.title;
+                li.addEventListener('click', () => {
+                    userInput.value = item.title;
+                    userInput.focus();
+                });
+                historyList.appendChild(li);
+            });
+        }
+        renderHistory();
+
+        userInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+            if (!this.value.trim()) this.style.height = '22px';
+        });
+
+        userInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        document.querySelectorAll('.health-topic-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const prompt = card.getAttribute('data-prompt');
+                if (prompt) sendMessage(prompt);
+            });
+        });
+
+        async function sendMessage(text) {
+            const query = text || userInput.value.trim();
+            if (!query) return;
+
+            if (welcomeHero) welcomeHero.style.display = 'none';
+
+            // Capture prior turns for multi-turn contextual memory
+            const historyPayload = currentMessages.map(m => ({
+                role: m.role,
+                text: m.text
+            }));
+
+            appendUserMessage(query);
+            currentMessages.push({ role: 'user', text: query, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
+
+            if (!chatHistory.some(h => h.title.toLowerCase() === query.toLowerCase())) {
+                chatHistory.push({ title: query, date: new Date().toISOString() });
+                localStorage.setItem('medquery_history', JSON.stringify(chatHistory));
+                renderHistory();
+            }
+
+            userInput.value = '';
+            userInput.style.height = '22px';
+            btnSend.disabled = true;
+
+            // Create bot message container ready for stream
+            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const msgId = 'msg-' + Date.now();
+            const sourcesContainerId = 'sources-' + Date.now();
+            const sourcesSlotId = 'sources-slot-' + Date.now();
+
+            const botRow = document.createElement('div');
+            botRow.className = 'chat-row bot-row';
+            botRow.innerHTML = `
+                <div class="bubble-container">
+                    <div class="chat-bubble" id="${msgId}">
+                        <div class="loading-row" style="box-shadow: none; border: none; padding: 0; background: transparent;">
+                            <div class="apple-spinner"></div>
+                            <span>Retrieving medical knowledge...</span>
+                        </div>
+                    </div>
+                    <div id="${sourcesSlotId}"></div>
+                    <div class="bubble-footer-meta" style="display: none;" id="meta-${msgId}">
+                        <span>${timeStr}</span>
+                        <span>•</span>
+                        <button class="btn-clipboard-copy" onclick="copyMessage('${msgId}')">
+                            <i data-lucide="copy" style="width: 11px; height: 11px;"></i> Copy
+                        </button>
+                    </div>
+                </div>
+            `;
+            chatContainer.appendChild(botRow);
+            scrollToBottom();
+            lucide.createIcons();
+
+            let accumulatedText = "";
+            let retrievedSources = [];
+
+            try {
+                const response = await fetch('/api/chat/stream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        msg: query,
+                        history: historyPayload
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error("HTTP error " + response.status);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder("utf-8");
+                let buffer = "";
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split("\n\n");
+                    buffer = lines.pop(); // Keep incomplete line
+
+                    for (const line of lines) {
+                        const trimmed = line.trim();
+                        if (trimmed.startsWith("data: ")) {
+                            try {
+                                const data = JSON.parse(trimmed.slice(6));
+                                if (data.type === "sources" && data.sources) {
+                                    retrievedSources = data.sources;
+                                    renderSourcesSlot(sourcesSlotId, sourcesContainerId, retrievedSources);
+                                } else if (data.type === "token" && data.token) {
+                                    accumulatedText += data.token;
+                                    const bubble = document.getElementById(msgId);
+                                    if (bubble) {
+                                        bubble.innerHTML = marked.parse(accumulatedText);
+                                    }
+                                    scrollToBottom();
+                                } else if (data.type === "error") {
+                                    accumulatedText += "\n\n⚠️ Error: " + data.error;
+                                    const bubble = document.getElementById(msgId);
+                                    if (bubble) bubble.innerHTML = marked.parse(accumulatedText);
+                                }
+                            } catch (e) {
+                                console.error("SSE parse error", e);
+                            }
+                        }
+                    }
+                }
+
+                const metaEl = document.getElementById(`meta-${msgId}`);
+                if (metaEl) metaEl.style.display = 'flex';
+                lucide.createIcons();
+
+                currentMessages.push({
+                    role: 'assistant',
+                    text: accumulatedText,
+                    sources: retrievedSources,
+                    time: timeStr
+                });
+
+            } catch (err) {
+                const bubble = document.getElementById(msgId);
+                if (bubble) bubble.innerHTML = "An error occurred while connecting to the server: " + err.message;
+            } finally {
+                btnSend.disabled = false;
+                userInput.focus();
+            }
+        }
+
+        function renderSourcesSlot(slotId, containerId, sources) {
+            const slot = document.getElementById(slotId);
+            if (!slot || !sources || sources.length === 0) return;
+
+            let cardsHtml = sources.map(s => `
+                <div class="source-reference-card">
+                    <div class="source-card-header">
+                        <span>📄 ${escapeHtml(s.file || 'Medical Reference')}</span>
+                        ${s.page ? `<span class="source-badge-page">Page ${s.page}</span>` : ''}
+                    </div>
+                    <div class="source-card-snippet">"${escapeHtml(s.snippet || '')}"</div>
+                </div>
+            `).join('');
+
+            slot.innerHTML = `
+                <button class="sources-toggle-btn" onclick="toggleSources('${containerId}', this)">
+                    <i data-lucide="book-open" style="width: 12px; height: 12px;"></i>
+                    <span>${sources.length} Medical Sources</span>
+                    <i data-lucide="chevron-down" style="width: 12px; height: 12px;"></i>
+                </button>
+                <div id="${containerId}" class="sources-list-container" style="display: none;">
+                    ${cardsHtml}
+                </div>
+            `;
+            lucide.createIcons();
+        }
+
+        function appendUserMessage(text) {
+            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const row = document.createElement('div');
+            row.className = 'chat-row user-row';
+            row.innerHTML = `
+                <div class="bubble-container">
+                    <div class="chat-bubble">${escapeHtml(text)}</div>
+                    <div class="bubble-footer-meta">${timeStr}</div>
+                </div>
+            `;
+            chatContainer.appendChild(row);
+            scrollToBottom();
+        }
+
+        function appendBotMessage(markdownText, sources = []) {
+            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const rawHtml = marked.parse(markdownText);
+            const row = document.createElement('div');
+            row.className = 'chat-row bot-row';
+            const msgId = 'msg-' + Date.now();
+            const sourcesContainerId = 'sources-' + Date.now();
+
+            let sourcesHtml = '';
+            if (sources && sources.length > 0) {
+                let cardsHtml = sources.map((s, idx) => `
+                    <div class="source-reference-card">
+                        <div class="source-card-header">
+                            <span>📄 ${escapeHtml(s.file || 'Medical Reference')}</span>
+                            ${s.page ? `<span class="source-badge-page">Page ${s.page}</span>` : ''}
+                        </div>
+                        <div class="source-card-snippet">"${escapeHtml(s.snippet || '')}"</div>
+                    </div>
+                `).join('');
+
+                sourcesHtml = `
+                    <button class="sources-toggle-btn" onclick="toggleSources('${sourcesContainerId}', this)">
+                        <i data-lucide="book-open" style="width: 12px; height: 12px;"></i>
+                        <span>${sources.length} Medical Sources</span>
+                        <i data-lucide="chevron-down" style="width: 12px; height: 12px;"></i>
+                    </button>
+                    <div id="${sourcesContainerId}" class="sources-list-container" style="display: none;">
+                        ${cardsHtml}
+                    </div>
+                `;
+            }
+
+            row.innerHTML = `
+                <div class="bubble-container">
+                    <div class="chat-bubble" id="${msgId}">${rawHtml}</div>
+                    ${sourcesHtml}
+                    <div class="bubble-footer-meta">
+                        <span>${timeStr}</span>
+                        <span>•</span>
+                        <button class="btn-clipboard-copy" onclick="copyMessage('${msgId}')">
+                            <i data-lucide="copy" style="width: 11px; height: 11px;"></i> Copy
+                        </button>
+                    </div>
+                </div>
+            `;
+            chatContainer.appendChild(row);
+            lucide.createIcons();
+            scrollToBottom();
+        }
+
+        window.toggleSources = function(containerId, btn) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            const isHidden = container.style.display === 'none';
+            container.style.display = isHidden ? 'flex' : 'none';
+            const chevron = btn.querySelector('[data-lucide="chevron-down"], [data-lucide="chevron-up"]');
+            if (chevron) {
+                chevron.setAttribute('data-lucide', isHidden ? 'chevron-up' : 'chevron-down');
+                lucide.createIcons();
+            }
+        };
+
+        function showLoadingState() {
+            const id = 'loading-' + Date.now();
+            const row = document.createElement('div');
+            row.className = 'chat-row bot-row';
+            row.id = id;
+            row.innerHTML = `
+                <div class="loading-row">
+                    <div class="apple-spinner"></div>
+                    <span>Consulting medical knowledge base...</span>
+                </div>
+            `;
+            chatContainer.appendChild(row);
+            scrollToBottom();
+            return id;
+        }
+
+        function removeLoadingState(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        window.copyMessage = function(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                navigator.clipboard.writeText(el.innerText).then(() => {
+                    const btn = el.parentElement.querySelector('.btn-clipboard-copy');
+                    if (btn) btn.innerText = 'Copied';
+                    setTimeout(() => { if (btn) btn.innerHTML = '<i data-lucide="copy" style="width: 11px; height: 11px;"></i> Copy'; lucide.createIcons(); }, 1500);
+                });
+            }
+        };
+
+        btnClearChat.addEventListener('click', () => {
+            chatContainer.innerHTML = '';
+            chatContainer.appendChild(welcomeHero);
+            welcomeHero.style.display = 'flex';
+            currentMessages = [];
+        });
+
+        btnNewChat.addEventListener('click', () => {
+            chatContainer.innerHTML = '';
+            chatContainer.appendChild(welcomeHero);
+            welcomeHero.style.display = 'flex';
+            currentMessages = [];
+            userInput.value = '';
+            userInput.focus();
+        });
+
+        btnThemeToggle.addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+            const nextTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', nextTheme);
+            themeIcon.setAttribute('data-lucide', nextTheme === 'light' ? 'moon' : 'sun');
+            lucide.createIcons();
+        });
+
+        btnToggleSidebar.addEventListener('click', () => {
+            sidebar.classList.toggle('open');
+        });
+
+        btnExport.addEventListener('click', () => {
+            if (currentMessages.length === 0) return;
+            let mdContent = `# MedQuery Consultation Summary\nDate: ${new Date().toLocaleString()}\n\n---\n\n`;
+            currentMessages.forEach(msg => {
+                mdContent += `### ${msg.role === 'user' ? 'Question' : 'Clinical Summary'} (${msg.time})\n\n${msg.text}\n\n`;
+            });
+            const blob = new Blob([mdContent], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `MedQuery_Consultation_${Date.now()}.md`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            const recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'en-US';
+            let isRecording = false;
+
+            btnVoice.addEventListener('click', () => {
+                if (!isRecording) {
+                    recognition.start();
+                    btnVoice.classList.add('apple-mic-active');
+                    isRecording = true;
+                } else {
+                    recognition.stop();
+                    btnVoice.classList.remove('apple-mic-active');
+                    isRecording = false;
+                }
+            });
+
+            recognition.onresult = (event) => {
+                userInput.value = event.results[0][0].transcript;
+                userInput.style.height = 'auto';
+                userInput.style.height = (userInput.scrollHeight) + 'px';
+                btnVoice.classList.remove('apple-mic-active');
+                isRecording = false;
+                userInput.focus();
+            };
+
+            recognition.onerror = () => {
+                btnVoice.classList.remove('apple-mic-active');
+                isRecording = false;
+            };
+
+            recognition.onend = () => {
+                btnVoice.classList.remove('apple-mic-active');
+                isRecording = false;
+            };
+        } else {
+            btnVoice.style.display = 'none';
+        }
+    </script>
+</body>
 </html>
