@@ -38,7 +38,7 @@ docsearch = PineconeVectorStore.from_existing_index(
 retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={"k": 3})
 
 chatModel = ChatGoogleGenerativeAI(
-    model="gemini-3.5-flash",
+    model="gemini-1.5-flash",
     google_api_key=GEMINI_API_KEY
 )
 
@@ -83,9 +83,12 @@ def index():
 def health():
     return jsonify({
         "status": "healthy",
-        "model": "gemini-3.5-flash",
+        "model": "gemini-1.5-flash",
         "index": index_name
     })
+
+def format_user_friendly_error(err: Exception) -> str:
+    return "The medical assistant service is temporarily experiencing high traffic or a connection delay. Please try your question again in a moment."
 
 @app.route("/api/chat", methods=["POST"])
 def api_chat():
@@ -141,10 +144,11 @@ def api_chat():
             "query": msg
         })
     except Exception as e:
+        friendly_error = format_user_friendly_error(e)
         return jsonify({
             "status": "error",
-            "error": str(e),
-            "answer": f"An error occurred while processing your request: {str(e)}"
+            "answer": friendly_error,
+            "error": friendly_error
         }), 500
 
 @app.route("/api/chat/stream", methods=["POST"])
@@ -196,11 +200,13 @@ def api_chat_stream():
 
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
             except Exception as ex:
-                yield f"data: {json.dumps({'type': 'error', 'error': str(ex)})}\n\n"
+                friendly_err = format_user_friendly_error(ex)
+                yield f"data: {json.dumps({'type': 'error', 'error': friendly_err})}\n\n"
 
         return Response(stream_with_context(generate()), mimetype="text/event-stream")
     except Exception as e:
-        return jsonify({"error": str(e), "status": "error"}), 500
+        friendly_err = format_user_friendly_error(e)
+        return jsonify({"error": friendly_err, "status": "error"}), 500
 
 @app.route("/get", methods=["GET", "POST"])
 def chat():

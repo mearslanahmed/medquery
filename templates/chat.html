@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MedQuery — Health Assistant</title>
+    <title>MedQuery</title>
     
-    <!-- Lucide Icons & Marked for Markdown -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     
@@ -18,7 +17,7 @@
             <div>
                 <div class="sidebar-brand">
                     <div class="brand-icon-health">
-                        <i data-lucide="heart" style="width: 16px; height: 16px;"></i>
+                        <i data-lucide="cross" style="width: 15px; height: 15px;"></i>
                     </div>
                     <span class="brand-title">MedQuery</span>
                 </div>
@@ -31,7 +30,7 @@
                 <div class="history-scroll">
                     <div class="history-heading">Recent</div>
                     <ul class="history-items-list" id="historyList">
-                        <!-- Filled by JS -->
+                        <!-- Populated by JS -->
                     </ul>
                 </div>
             </div>
@@ -39,48 +38,41 @@
             <div class="sidebar-status-pane">
                 <div class="status-badge">
                     <div class="status-dot-green"></div>
-                    <span>Pinecone Medical Index</span>
-                </div>
-                <div class="status-badge">
-                    <i data-lucide="cpu" style="width: 12px; height: 12px;"></i>
-                    <span>Gemini 1.5 Flash</span>
+                    <span>Pinecone & Gemini 1.5</span>
                 </div>
             </div>
         </aside>
 
-        <!-- Main Health Workspace -->
+        <!-- Main Workspace -->
         <main class="app-main">
-            <!-- Apple Style Navigation Bar -->
+            <!-- Clean Header -->
             <header class="top-navigation">
                 <div class="nav-left-group">
                     <button class="btn-menu-toggle" id="btnToggleSidebar" aria-label="Toggle Navigation">
-                        <i data-lucide="menu" style="width: 18px; height: 18px;"></i>
+                        <i data-lucide="sidebar" style="width: 18px; height: 18px;"></i>
                     </button>
-                    <span class="header-badge">Clinical Reference</span>
+                    <span class="view-title">Consultation</span>
                 </div>
 
                 <div class="nav-actions-group">
                     <button class="apple-icon-button" id="btnExport" title="Export Consultation">
-                        <i data-lucide="arrow-down-to-line" style="width: 16px; height: 16px;"></i>
+                        <i data-lucide="download" style="width: 16px; height: 16px;"></i>
                     </button>
-                    <button class="apple-icon-button" id="btnThemeToggle" title="Toggle Appearance">
+                    <button class="apple-icon-button" id="btnThemeToggle" title="Toggle Theme">
                         <i data-lucide="moon" id="themeIcon" style="width: 16px; height: 16px;"></i>
                     </button>
                     <button class="apple-icon-button" id="btnClearChat" title="Clear Chat">
-                        <i data-lucide="trash" style="width: 16px; height: 16px;"></i>
+                        <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
                     </button>
                 </div>
             </header>
 
             <!-- Chat Viewport -->
             <div class="chat-viewport" id="chatContainer">
-                <!-- Clean Apple Health Empty State -->
+                <!-- Clean Empty State -->
                 <div class="empty-state-welcome" id="welcomeHero">
-                    <div class="apple-heart-symbol">
-                        <i data-lucide="activity" style="width: 24px; height: 24px;"></i>
-                    </div>
-                    <h2>Medical Reference</h2>
-                    <p>Ask health questions grounded in medical literature and vector clinical indexes.</p>
+                    <h2>How can I help with your health questions?</h2>
+                    <p>Search medical literature and clinical references for conditions, symptoms, and treatments.</p>
 
                     <div class="suggested-topics-grid">
                         <div class="health-topic-card" data-prompt="What is acne vulgaris and what are the standard medical treatments?">
@@ -103,7 +95,7 @@
                 </div>
             </div>
 
-            <!-- Apple Pill Input Bar -->
+            <!-- Input Dock -->
             <div class="input-dock-wrapper">
                 <div id="chatInputBar" class="apple-input-bar">
                     <button type="button" class="action-icon-button" id="btnVoice" title="Dictate">
@@ -112,7 +104,7 @@
                     <textarea 
                         id="userInput" 
                         class="apple-textarea" 
-                        placeholder="Search or ask a clinical question..." 
+                        placeholder="Ask a medical or health question..." 
                         rows="1"
                     ></textarea>
                     <button type="button" class="action-icon-button btn-send-message" id="btnSend" onclick="sendMessage()" title="Send">
@@ -120,7 +112,7 @@
                     </button>
                 </div>
                 <div class="subtle-disclaimer">
-                    For informational and educational reference only. Consult a healthcare provider for diagnosis and treatment.
+                    For informational and educational reference only. Consult a healthcare professional for clinical advice.
                 </div>
             </div>
         </main>
@@ -192,7 +184,6 @@
 
             if (welcomeHero) welcomeHero.style.display = 'none';
 
-            // Capture prior turns for multi-turn contextual memory
             const historyPayload = currentMessages.map(m => ({
                 role: m.role,
                 text: m.text
@@ -211,7 +202,6 @@
             userInput.style.height = '22px';
             btnSend.disabled = true;
 
-            // Create bot message container ready for stream
             const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const msgId = 'msg-' + Date.now();
             const sourcesContainerId = 'sources-' + Date.now();
@@ -224,7 +214,7 @@
                     <div class="chat-bubble" id="${msgId}">
                         <div class="loading-row" style="box-shadow: none; border: none; padding: 0; background: transparent;">
                             <div class="apple-spinner"></div>
-                            <span>Retrieving medical knowledge...</span>
+                            <span>Searching medical literature...</span>
                         </div>
                     </div>
                     <div id="${sourcesSlotId}"></div>
@@ -268,7 +258,7 @@
 
                     buffer += decoder.decode(value, { stream: true });
                     const lines = buffer.split("\n\n");
-                    buffer = lines.pop(); // Keep incomplete line
+                    buffer = lines.pop();
 
                     for (const line of lines) {
                         const trimmed = line.trim();
@@ -286,9 +276,9 @@
                                     }
                                     scrollToBottom();
                                 } else if (data.type === "error") {
-                                    accumulatedText += "\n\n⚠️ Error: " + data.error;
+                                    accumulatedText = data.error || "The medical assistant service is temporarily unavailable. Please try again shortly.";
                                     const bubble = document.getElementById(msgId);
-                                    if (bubble) bubble.innerHTML = marked.parse(accumulatedText);
+                                    if (bubble) bubble.innerHTML = escapeHtml(accumulatedText);
                                 }
                             } catch (e) {
                                 console.error("SSE parse error", e);
@@ -310,7 +300,7 @@
 
             } catch (err) {
                 const bubble = document.getElementById(msgId);
-                if (bubble) bubble.innerHTML = "An error occurred while connecting to the server: " + err.message;
+                if (bubble) bubble.innerHTML = "Unable to connect to the medical assistant service. Please check your connection and try again.";
             } finally {
                 btnSend.disabled = false;
                 userInput.focus();
@@ -358,56 +348,6 @@
             scrollToBottom();
         }
 
-        function appendBotMessage(markdownText, sources = []) {
-            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const rawHtml = marked.parse(markdownText);
-            const row = document.createElement('div');
-            row.className = 'chat-row bot-row';
-            const msgId = 'msg-' + Date.now();
-            const sourcesContainerId = 'sources-' + Date.now();
-
-            let sourcesHtml = '';
-            if (sources && sources.length > 0) {
-                let cardsHtml = sources.map((s, idx) => `
-                    <div class="source-reference-card">
-                        <div class="source-card-header">
-                            <span>📄 ${escapeHtml(s.file || 'Medical Reference')}</span>
-                            ${s.page ? `<span class="source-badge-page">Page ${s.page}</span>` : ''}
-                        </div>
-                        <div class="source-card-snippet">"${escapeHtml(s.snippet || '')}"</div>
-                    </div>
-                `).join('');
-
-                sourcesHtml = `
-                    <button class="sources-toggle-btn" onclick="toggleSources('${sourcesContainerId}', this)">
-                        <i data-lucide="book-open" style="width: 12px; height: 12px;"></i>
-                        <span>${sources.length} Medical Sources</span>
-                        <i data-lucide="chevron-down" style="width: 12px; height: 12px;"></i>
-                    </button>
-                    <div id="${sourcesContainerId}" class="sources-list-container" style="display: none;">
-                        ${cardsHtml}
-                    </div>
-                `;
-            }
-
-            row.innerHTML = `
-                <div class="bubble-container">
-                    <div class="chat-bubble" id="${msgId}">${rawHtml}</div>
-                    ${sourcesHtml}
-                    <div class="bubble-footer-meta">
-                        <span>${timeStr}</span>
-                        <span>•</span>
-                        <button class="btn-clipboard-copy" onclick="copyMessage('${msgId}')">
-                            <i data-lucide="copy" style="width: 11px; height: 11px;"></i> Copy
-                        </button>
-                    </div>
-                </div>
-            `;
-            chatContainer.appendChild(row);
-            lucide.createIcons();
-            scrollToBottom();
-        }
-
         window.toggleSources = function(containerId, btn) {
             const container = document.getElementById(containerId);
             if (!container) return;
@@ -419,27 +359,6 @@
                 lucide.createIcons();
             }
         };
-
-        function showLoadingState() {
-            const id = 'loading-' + Date.now();
-            const row = document.createElement('div');
-            row.className = 'chat-row bot-row';
-            row.id = id;
-            row.innerHTML = `
-                <div class="loading-row">
-                    <div class="apple-spinner"></div>
-                    <span>Consulting medical knowledge base...</span>
-                </div>
-            `;
-            chatContainer.appendChild(row);
-            scrollToBottom();
-            return id;
-        }
-
-        function removeLoadingState(id) {
-            const el = document.getElementById(id);
-            if (el) el.remove();
-        }
 
         function scrollToBottom() {
             chatContainer.scrollTop = chatContainer.scrollHeight;

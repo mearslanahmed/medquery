@@ -229,14 +229,11 @@ body {
   padding: 0.25rem;
 }
 
-.header-badge {
-  font-size: 0.78rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  background: var(--bg-app);
-  border: 1px solid var(--border-subtle);
-  padding: 0.2rem 0.55rem;
-  border-radius: 12px;
+.view-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-main);
+  letter-spacing: -0.01em;
 }
 
 .nav-actions-group {
