@@ -1,113 +1,214 @@
-# 🩺 MedQuery — Clinical Multi-Agent RAG Assistant
+# MedQuery: Distributed Clinical Retrieval-Augmented Generation (RAG) System
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-Render-0071e3?style=for-the-badge&logo=render&logoColor=white)](https://medquery-chatbot.onrender.com)
-[![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![LangChain](https://img.shields.io/badge/LangChain-Orchestration-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white)](https://www.langchain.com/)
-[![Pinecone](https://img.shields.io/badge/Pinecone-23k+_Vectors-000000?style=for-the-badge&logo=pinecone&logoColor=white)](https://www.pinecone.io/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
-[![CI/CD](https://img.shields.io/badge/CI%2FCD-Automated-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/mearslanahmed/medquery)
+[![Live System](https://img.shields.io/badge/Live_Deployment-Render-0071e3?style=flat-square&logo=render&logoColor=white)](https://medquery-chatbot.onrender.com)
+[![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![LangChain](https://img.shields.io/badge/LangChain-Orchestration-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](https://www.langchain.com/)
+[![Pinecone](https://img.shields.io/badge/Pinecone-23k+_Vectors-000000?style=flat-square&logo=pinecone&logoColor=white)](https://www.pinecone.io/)
+[![Docker](https://img.shields.io/badge/Docker-Linux_x86_64-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com/)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=flat-square)](LICENSE)
 
-> **MedQuery** is an enterprise-grade Clinical Decision Support and Medical Reference Assistant powered by a **Multi-Agent Retrieval-Augmented Generation (RAG)** architecture, an indexed knowledge base of **23,000+ medical textbook passages**, and a resilient **3-tier LLM fallback pool** (Groq, OpenRouter, Google Gemini).
+MedQuery is a clinical reference tool that answers health questions using 23,000+ passages indexed from 5 authoritative medical textbooks. It uses a multi-agent pipeline that drops non-medical prompts in ~100ms, searches Pinecone for relevant clinical passages, and streams answers with verified textbook citations and physical page numbers. It also features a 3-tier LLM fallback pool (Groq -> OpenRouter -> Gemini) so rate limits never block user requests.
 
-🔗 **Live Web Application:** [https://medquery-chatbot.onrender.com](https://medquery-chatbot.onrender.com)
-
----
-
-## 🌟 Key Highlights
-
-- **Multi-Agent Architecture:**
-  - 🛡️ **Triage Agent:** Sub-second classification of user queries to enforce strict clinical and biomedical domain boundaries.
-  - 📚 **Clinical RAG Agent:** History-aware query reformulation coupled with dense semantic search against 23,000+ textbook passages in Pinecone.
-  - 🔍 **Safety & Citation Agent:** Automatic deduplication and extraction of clinical sources, book titles, page numbers, and exact verbatim context snippets.
-- **Resilient Multi-Provider Fallback Pool:**
-  - Automatic zero-downtime cascading failover: **Groq (`openai/gpt-oss-120b`)** &rarr; **OpenRouter Free Tier (`google/gemma-4-31b-it`)** &rarr; **Google Gemini 1.5**.
-- **Clean Clinical Formatting (No Robotic AI Chatter):**
-  - Strictly bans markdown tables and conversational pleasantries (*"Certainly!"*, *"As an AI..."*). Delivers high-yield clinical sections: Overview, Mechanism of Action, Indications, Dosage, and Precautions.
-- **Apple-Inspired Consultation Interface:**
-  - Dark/Light mode, voice dictation, SSE streaming, consultation export, interactive source cards, and an instant zero-latency splash screen.
-- **Production & 24/7 Keep-Alive CI/CD:**
-  - Containerized with memory-optimized CPU-only PyTorch (<180 MB RAM footprint).
-  - Automated GitHub Actions keep-alive heartbeat preventing cloud sleep.
+Live Demo: [https://medquery-chatbot.onrender.com](https://medquery-chatbot.onrender.com)
 
 ---
 
-## 🏗️ System Architecture
+## Architecture Overview
+
+MedQuery decouples retrieval, inference resilience, and client presentation into distinct subsystems:
 
 ```mermaid
 flowchart TD
-    User([User Consultation Input]) --> Triage{Triage Agent}
-    Triage -- Off-Topic Question --> Refusal[Strict Medical Boundary Refusal]
-    Triage -- Health / Biomedical Query --> RAG[Clinical RAG Agent]
+    Client([HTTP / SSE Client]) --> Gateway[Gunicorn / Flask Reverse Proxy]
+    Gateway --> Triage{Triage Agent}
     
-    subgraph Vector Knowledge Base
-        Books[(5 Medical Textbooks\n23,167 Passages)] --> Pinecone[(Pinecone Vector Store)]
+    Triage -- Off-Topic / Non-Clinical --> Refusal[Deterministic Domain Rejection]
+    Triage -- Clinical / Biomedical --> RAG[Clinical RAG Orchestrator]
+    
+    subgraph Vector Knowledge Layer
+        Corpus[(Authoritative Medical Texts\n23,167 Chunks)] --> Index[(Pinecone Serverless Index\nCosine Metric, 384-d)]
     end
     
-    RAG <--> |Dense Embedding Search| Pinecone
+    RAG <--> |Dense Semantic Search| Index
     
-    subgraph Resilient LLM Pool
-        Groq[Tier 1: Groq Cloud\ngpt-oss-120b] -->|Failover 429| OpenRouter[Tier 2: OpenRouter\ngemma-4-31b]
-        OpenRouter -->|Failover| Gemini[Tier 3: Google Gemini\nFlash]
+    subgraph Resilient Provider Pool
+        P1[Tier 1: Groq Cloud\nModel: openai/gpt-oss-120b]
+        P2[Tier 2: OpenRouter Gateway\nModel: google/gemma-4-31b-it]
+        P3[Tier 3: Google Generative AI\nModel: gemini-3.5-flash]
+        
+        P1 -. Fallback on 429/5xx .-> P2
+        P2 -. Fallback on 429/5xx .-> P3
     end
     
-    RAG <--> Resilient LLM Pool
-    RAG --> Safety[Safety & Citation Agent]
-    Safety --> Stream([Server-Sent Events Stream & Citations])
+    RAG <--> Resilient Provider Pool
+    RAG --> Safety[Safety & Provenance Agent]
+    Safety --> ResponseStream([Server-Sent Events Stream + Citation Meta])
 ```
 
 ---
 
-## 🛠️ Tech Stack
+## Subsystem Specifications
 
-- **Backend Framework:** Python 3.11, Flask, Gunicorn
-- **LLM Orchestration:** LangChain Core, LangChain Classic
-- **Embeddings & Vector Database:** `sentence-transformers/all-MiniLM-L6-v2`, Pinecone Serverless
-- **Inference Providers:** Groq API, OpenRouter API, Google Generative AI
-- **Frontend:** Vanilla JavaScript (ES6+), Server-Sent Events (SSE), Marked.js, Lucide Icons, Custom Apple-Style CSS Design System
-- **DevOps & Cloud:** Docker, GitHub Actions CI/CD, Render Web Service
+### 1. Triage and Boundary Enforcement Agent
+- **Purpose:** Prevents query drift and model hallucinations on non-biomedical inputs.
+- **Mechanism:** Executes lightweight classification on incoming prompts before vector retrieval. Inquiries outside health, pharmacotherapy, pathology, anatomy, or clinical guidelines receive an immediate, deterministic rejection without incurring vector search latency or token overhead.
+
+### 2. Clinical RAG Orchestrator
+- **Contextualization:** Converts conversational, reference-dependent inputs into standalone search queries using past dialogue turns.
+- **Dense Retrieval:** Interfaces with Pinecone Serverless using normalized 384-dimensional dense vectors generated by `sentence-transformers/all-MiniLM-L6-v2`.
+- **Generation Directives:** Enforces clinical communication standards:
+  - Markdown tables are prohibited to ensure layout consistency across mobile and desktop viewports.
+  - Conversational filler, meta-announcements, and disclaimers are suppressed in favor of structured clinical sections (Overview, Pathophysiology, Clinical Indications, Dosage, and Precautions).
+
+### 3. Multi-Provider LLM Resilience Pool
+Production inference is configured with automated failover:
+- **Tier 1 (Primary):** Groq Cloud (`openai/gpt-oss-120b`) for low-latency token generation.
+- **Tier 2 (Secondary):** OpenRouter Free Tier (`google/gemma-4-31b-it`) automatically triggered on rate limits (HTTP 429) or upstream connectivity failures.
+- **Tier 3 (Tertiary):** Google Gemini 3.5 Flash for mission-critical baseline redundancy.
+
+### 4. Safety and Citation Agent
+- Extracts and deduplicates document metadata (`source`, `page`) from retrieved chunks.
+- Maps chunks to exact textbook sources and formats verifiable bibliographic citations alongside the stream.
 
 ---
 
-## 🚀 Getting Started
+## Vector Ingestion and Knowledge Base
 
-### 1. Clone the Repository
+The vector knowledge base was constructed using memory-conscious batch ingestion:
+
+| Metric | Specification |
+| :--- | :--- |
+| **Indexed Passages** | 23,167 vectors |
+| **Corpus Scope** | 5 core medical textbooks (Pharmacology, Internal Medicine, First Aid, Anatomy, Clinical Care) |
+| **Chunking Strategy** | Recursive character splitting: 1,000 characters per chunk, 100 character overlap |
+| **Embedding Model** | `all-MiniLM-L6-v2` (PyTorch CPU, normalized embeddings) |
+| **Vector Dimension** | 384 dimensions |
+| **Similarity Metric** | Cosine similarity |
+
+---
+
+## Memory and Container Optimization
+
+To run reliably within constrained container environments (such as Render's 512 MB RAM limit), several low-level runtime optimizations were implemented:
+
+1. **Build-Time Model Baking:**
+   The embedding weights (`all-MiniLM-L6-v2`) are downloaded and cached during `docker build` (`/root/.cache/huggingface/`), eliminating runtime network latency and container startup stalls.
+2. **CPU-Only PyTorch Dependency:**
+   Container dependencies are linked against CPU-specific wheels (`torch --index-url https://download.pytorch.org/whl/cpu`), reducing image size by over 70% and removing unnecessary CUDA runtime overhead.
+3. **Memory Allocator Limits:**
+   `ENV MALLOC_ARENA_MAX=2` restricts glibc virtual memory arenas, preventing memory fragmentation common in multi-core Linux container hosts.
+4. **Thread Clamping:**
+   PyTorch runtime threads are pinned (`torch.set_num_threads(1)`) alongside `ENV OMP_NUM_THREADS=1` and `ENV TORCH_NUM_THREADS=1` to eliminate thread-local allocation pools.
+5. **Gunicorn Worker Configuration:**
+   Single-worker, multi-threaded execution (`--workers 1 --threads 2 --max-requests 500`) prevents duplicate model instantiation and recycles worker memory periodically.
+
+---
+
+## API Reference
+
+### 1. Streaming Chat Completion
+`POST /api/chat/stream`
+
+Streams responses token-by-token using Server-Sent Events (SSE).
+
+**Request Body:**
+```json
+{
+  "msg": "Compare the clinical indications and contraindications of Ibuprofen versus Paracetamol.",
+  "history": [
+    { "role": "user", "text": "What are common NSAIDs?" },
+    { "role": "assistant", "text": "Nonsteroidal anti-inflammatory drugs include..." }
+  ]
+}
+```
+
+**SSE Events:**
+- `event: data: {"type": "sources", "sources": [{"file": "Goodman_Gilman.pdf", "page": 680, "snippet": "..."}]}`
+- `event: data: {"type": "token", "token": "### Overview\n..."}`
+- `event: data: {"type": "done"}`
+
+### 2. Synchronous Chat Completion
+`POST /api/chat`
+
+Returns the complete response payload with bibliographic citations in a single JSON response.
+
+### 3. System Health Probe
+`GET /api/health`
+
+**Response:**
+```json
+{
+  "index": "medquery",
+  "providers": "Groq + OpenRouter + Gemini Fallback Pool",
+  "status": "healthy",
+  "system": "Multi-Agent Clinical Pipeline",
+  "uptime_seconds": 1420
+}
+```
+
+---
+
+## Local Setup and Installation
+
+### Prerequisites
+- Python 3.10 or 3.11
+- Git
+- Active API keys for Pinecone and at least one LLM provider (Groq, OpenRouter, or Gemini)
+
+### Step 1: Clone Repository
 ```bash
 git clone https://github.com/mearslanahmed/medquery.git
 cd medquery
 ```
 
-### 2. Set Up Virtual Environment
+### Step 2: Environment Setup
 ```bash
 python -m venv myenv
-source myenv/bin/activate  # On Windows: .\myenv\Scripts\activate
+
+# Windows:
+.\myenv\Scripts\activate
+
+# Linux / macOS:
+source myenv/bin/activate
+
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 3. Configure Environment Variables
-Create a `.env` file in the root directory:
+### Step 3: Configure Environment Variables
+Create a `.env` file in the project root:
 ```env
-PINECONE_API_KEY="your-pinecone-api-key"
-GROQ_API_KEY="your-groq-api-key"
-OPENROUTER_API_KEY="your-openrouter-api-key"
-GEMINI_API_KEY="your-gemini-api-key"
+PINECONE_API_KEY="your-pinecone-key"
+GROQ_API_KEY="your-groq-key"
+OPENROUTER_API_KEY="your-openrouter-key"
+GEMINI_API_KEY="your-gemini-key"
 ```
 
-### 4. Run the Application Locally
+### Step 4: Run Application
 ```bash
 python app.py
 ```
-Visit `http://localhost:8080` in your browser.
+The server will bind to `http://localhost:8080`.
 
 ---
 
-## 🐳 Running with Docker
+## Docker Deployment
+
+Build and execute the production container:
 
 ```bash
 docker build -t medquery:latest .
-docker run -p 8080:8080 --env-file .env medquery:latest
+docker run -d -p 8080:8080 --env-file .env --name medquery-service medquery:latest
 ```
 
 ---
 
-## 📄 License
-This project is licensed under the Apache 2.0 License — see the [LICENSE](LICENSE) file for details.
+## Continuous Integration and Availability
+
+- **Automated Testing:** GitHub Actions runs syntax validation, dependency caching, and import integrity tests on every push.
+- **Availability Sentinel:** A scheduled GitHub Actions workflow triggers every 12 minutes to ping `/api/health`, preventing cloud container sleep and eliminating cold-start latency.
+
+---
+
+## License
+Distributed under the Apache 2.0 License. See `LICENSE` for details.
