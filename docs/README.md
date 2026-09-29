@@ -14,7 +14,7 @@ How the request pipeline works from user input to output stream:
 - Citation parser that extracts textbook names and page numbers
 
 ### [2. Vector Indexing & RAG Pipeline](rag_and_indexing.md)
-How we turned 5 medical textbooks into searchable vectors:
+How we turned 6 medical textbooks into searchable vectors:
 - Text extraction and chunking settings (1,000 chars, 100 overlap)
 - Embedding model choices (`all-MiniLM-L6-v2`, 384 dimensions)
 - Pinecone serverless index setup
@@ -55,6 +55,6 @@ Rules enforced on the model outputs:
 | **Fallback 2** | Google Gemini 3.5 Flash |
 | **Embeddings** | `sentence-transformers/all-MiniLM-L6-v2` (384 dimensions) |
 | **Vector DB** | Pinecone Serverless (Cosine) |
-| **Data Volume** | 23,167 passages from 5 medical textbooks |
+| **Data Volume** | 23,167 passages from 6 medical textbooks |
 | **Container Target** | Render Free Tier (512 MB RAM) |
 | **Live URL** | https://medquery-chatbot.onrender.com |

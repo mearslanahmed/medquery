@@ -2,18 +2,19 @@
 
 ## Overview
 
-MedQuery searches through 23,167 passages extracted from 5 standard medical textbooks. Here is how we parsed the PDFs, chunked the text, generated embeddings, and stored them in Pinecone without crashing our local machine.
+MedQuery searches through 23,167 passages extracted from 6 standard medical textbooks. Here is how we parsed the PDFs, chunked the text, generated embeddings, and stored them in Pinecone without crashing our local machine.
 
 ---
 
 ## 1. What Textbooks We Used
 
-We indexed 5 reference books (~680 MB total, ~15,000 pages):
-- **Pharmacology:** *Goodman & Gilman’s The Pharmacological Basis of Therapeutics* (mechanisms, dosing, drug-drug interactions)
-- **Internal Medicine:** *Harrison's Principles of Internal Medicine* (symptoms, disease pathology, diagnosis)
-- **Emergency Medicine:** *First Aid Clinical Reference* (rapid triage, emergency treatment steps)
-- **General Practice:** *Clinical Medicine Guidelines* (standard care pathways)
-- **Anatomy & Biology:** *Anatomy Reference Atlas* (biological structures)
+We indexed 6 reference books (~685 MB total, ~15,000 pages):
+- **Clinical Practice & Treatment:** *CURRENT Medical Diagnosis & Treatment (2025)* (latest clinical diagnostic criteria and treatment guidelines)
+- **Internal Medicine:** *Harrison’s Principles of Internal Medicine (21st Edition)* (clinical pathology, systemic diseases, differential diagnosis)
+- **Medical Physiology:** *Guyton and Hall Textbook of Medical Physiology (14th Edition)* (cellular and organ-system physiological mechanisms)
+- **Pharmacology:** *Katzung’s Basic and Clinical Pharmacology (16th Edition)* (pharmacokinetics, pharmacodynamics, drug contraindications)
+- **Pathology:** *Robbins & Cotran Pathologic Basis of Disease* (cellular mechanisms of disease and structural tissue pathology)
+- **General Medicine Reference:** *The Gale Encyclopedia of Medicine* (patient-facing medical encyclopedic reference)
 
 ---
 
@@ -57,7 +58,7 @@ embeddings = HuggingFaceEmbeddings(
 
 ## 4. How Ingestion Runs Without Crashing (`store_index.py`)
 
-If you try to load 5 medical textbooks (15,000 pages) all at once in Python using `PyPDFLoader`, your machine will quickly run out of RAM and freeze.
+If you try to load 6 medical textbooks (15,000 pages) all at once in Python using `PyPDFLoader`, your machine will quickly run out of RAM and freeze.
 
 To solve this, `store_index.py` processes each book one at a time:
 

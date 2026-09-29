@@ -7,9 +7,11 @@
 [![Docker](https://img.shields.io/badge/Docker-Linux_x86_64-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=flat-square)](LICENSE)
 
-MedQuery is a clinical reference tool that answers health questions using 23,000+ passages indexed from 5 authoritative medical textbooks. It uses a multi-agent pipeline that drops non-medical prompts in ~100ms, searches Pinecone for relevant clinical passages, and streams answers with verified textbook citations and physical page numbers. It also features a 3-tier LLM fallback pool (Groq -> OpenRouter -> Gemini) so rate limits never block user requests.
+MedQuery is a clinical reference tool that answers health questions using 23,000+ passages indexed from 6 authoritative medical textbooks. It uses a multi-agent pipeline that drops non-medical prompts in ~100ms, searches Pinecone for relevant clinical passages, and streams answers with verified textbook citations and physical page numbers. It also features a 3-tier LLM fallback pool (Groq -> OpenRouter -> Gemini) so rate limits never block user requests.
 
 Live Demo: [https://medquery-chatbot.onrender.com](https://medquery-chatbot.onrender.com)
+
+![MedQuery Clinical Consultation Preview](screenshots/preview1.png)
 
 ---
 
@@ -79,7 +81,7 @@ The vector knowledge base was constructed using memory-conscious batch ingestion
 | Metric | Specification |
 | :--- | :--- |
 | **Indexed Passages** | 23,167 vectors |
-| **Corpus Scope** | 5 core medical textbooks (Pharmacology, Internal Medicine, First Aid, Anatomy, Clinical Care) |
+| **Corpus Scope** | 6 core medical textbooks (Harrison's, Katzung Pharmacology, Guyton & Hall, Robbins Pathology, CURRENT 2025, Gale Encyclopedia) |
 | **Chunking Strategy** | Recursive character splitting: 1,000 characters per chunk, 100 character overlap |
 | **Embedding Model** | `all-MiniLM-L6-v2` (PyTorch CPU, normalized embeddings) |
 | **Vector Dimension** | 384 dimensions |
