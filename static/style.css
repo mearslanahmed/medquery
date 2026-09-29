@@ -403,20 +403,98 @@ body {
 
 /* Clean Markdown Typography */
 .bot-row .chat-bubble p {
-  margin-bottom: 0.6rem;
+  margin-bottom: 0.65rem;
+  line-height: 1.6;
 }
 .bot-row .chat-bubble p:last-child {
   margin-bottom: 0;
 }
-.bot-row .chat-bubble ul, .bot-row .chat-bubble ol {
-  margin: 0.4rem 0 0.6rem 1.25rem;
+
+.bot-row .chat-bubble h1,
+.bot-row .chat-bubble h2,
+.bot-row .chat-bubble h3,
+.bot-row .chat-bubble h4 {
+  font-weight: 600;
+  color: var(--text-main);
+  letter-spacing: -0.015em;
+  margin-top: 1rem;
+  margin-bottom: 0.45rem;
+  line-height: 1.35;
 }
+
+.bot-row .chat-bubble h1:first-child,
+.bot-row .chat-bubble h2:first-child,
+.bot-row .chat-bubble h3:first-child,
+.bot-row .chat-bubble h4:first-child {
+  margin-top: 0;
+}
+
+.bot-row .chat-bubble h1 { font-size: 1.15rem; }
+.bot-row .chat-bubble h2 { font-size: 1.05rem; }
+.bot-row .chat-bubble h3 { font-size: 0.96rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.25rem; }
+.bot-row .chat-bubble h4 { font-size: 0.90rem; }
+
+.bot-row .chat-bubble ul, 
+.bot-row .chat-bubble ol {
+  margin: 0.45rem 0 0.75rem 1.25rem;
+  padding-left: 0.25rem;
+}
+
 .bot-row .chat-bubble li {
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.35rem;
+  line-height: 1.55;
+  color: var(--text-main);
 }
+
+.bot-row .chat-bubble li:last-child {
+  margin-bottom: 0;
+}
+
 .bot-row .chat-bubble strong {
   font-weight: 600;
   color: var(--text-main);
+}
+
+.bot-row .chat-bubble blockquote {
+  border-left: 3px solid var(--accent-health-blue);
+  background-color: var(--border-subtle);
+  margin: 0.65rem 0;
+  padding: 0.45rem 0.85rem;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+/* Fallback elegant styling if any table is ever parsed */
+.bot-row .chat-bubble table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 0.84rem;
+  background-color: var(--bg-surface);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+}
+
+.bot-row .chat-bubble th {
+  background-color: var(--border-subtle);
+  padding: 0.5rem 0.75rem;
+  font-weight: 600;
+  text-align: left;
+  color: var(--text-main);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.bot-row .chat-bubble td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.bot-row .chat-bubble tr:last-child td {
+  border-bottom: none;
 }
 
 .chat-bubble code {
