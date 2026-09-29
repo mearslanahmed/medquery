@@ -1,4 +1,4 @@
-name: MedQuery CI/CD Pipeline
+name: MedQuery CI Pipeline
 
 on:
   push:
@@ -8,13 +8,13 @@ on:
 
 jobs:
   Continuous-Integration-Test:
-    name: Build & Lint Check
+    name: Code & Import Verification
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -31,73 +31,17 @@ jobs:
           python -c "import src.prompt; print('Prompt module OK')"
           python -c "import src.helper; print('Helper module OK')"
 
-  AWS-ECR-and-Deploy:
-    name: Build Docker & Deploy
+  Docker-Build-Verification:
+    name: Container Build Verification
     needs: Continuous-Integration-Test
     runs-on: ubuntu-latest
-    # Only run AWS deployment if AWS credentials secret is configured
-    if: github.ref == 'refs/heads/main' && secrets.AWS_ACCESS_KEY_ID != ''
     steps:
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build, tag, and push image to Amazon ECR
-        id: build-image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ secrets.ECR_REPO }}
-          IMAGE_TAG: latest
+      - name: Verify Dockerfile Builds Cleanly
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .  
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
-
-  Continuous-Deployment-EC2:
-    name: Run on Target Host
-    needs: AWS-ECR-and-Deploy
-    # Only runs if user has configured self-hosted runner and AWS secrets
-    if: github.ref == 'refs/heads/main' && secrets.AWS_ACCESS_KEY_ID != ''
-    runs-on: self-hosted
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Stop Previous Container and Run Updated Image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ secrets.ECR_REPO }}
-        run: |
-          docker stop medquery-app || true
-          docker rm medquery-app || true
-          docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker run -d \
-            --name medquery-app \
-            --restart always \
-            -p 8080:8080 \
-            -e PINECONE_API_KEY="${{ secrets.PINECONE_API_KEY }}" \
-            -e GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
-            -e GROQ_API_KEY="${{ secrets.GROQ_API_KEY }}" \
-            -e OPENROUTER_API_KEY="${{ secrets.OPENROUTER_API_KEY }}" \
-            $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker build -t medquery:ci-test .
