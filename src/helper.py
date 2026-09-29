@@ -52,10 +52,21 @@ def text_split(docs, chunk_size: int = 1000, chunk_overlap: int = 100):
 
 def download_hugging_face_embeddings():
     """
-    Download and return the HuggingFace embeddings model.
+    Download and return the HuggingFace embeddings model with minimal memory footprint.
     """
+    import torch
+    try:
+        torch.set_num_threads(1)
+    except Exception:
+        pass
+
     model_name = "sentence-transformers/all-MiniLM-L6-v2"
+    model_kwargs = {'device': 'cpu'}
+    encode_kwargs = {'normalize_embeddings': True}
     embeddings = HuggingFaceEmbeddings(
         model_name=model_name,
+        model_kwargs=model_kwargs,
+        encode_kwargs=encode_kwargs
     )
     return embeddings
+

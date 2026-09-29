@@ -26,7 +26,10 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 os.environ["PINECONE_API_KEY"] = PINECONE_API_KEY or ""
 os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY or ""
 
+import gc
+
 embeddings = download_hugging_face_embeddings()
+gc.collect()
 
 from src.agents import MedQueryMultiAgent
 
@@ -41,6 +44,7 @@ retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={"k":
 
 # Initialize Multi-Agent System (Triage + Clinical RAG + Safety Citation + Free Fallback)
 med_agent = MedQueryMultiAgent(retriever)
+gc.collect()
 
 @app.route("/")
 def index():

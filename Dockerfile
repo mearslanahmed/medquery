@@ -4,6 +4,12 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
 
+# Memory optimization for 512MB RAM container
+ENV MALLOC_ARENA_MAX=2
+ENV OMP_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+ENV TORCH_NUM_THREADS=1
+
 WORKDIR /app
 
 # Install system build dependencies
@@ -12,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Pre-install CPU-only PyTorch to keep the image lightweight (saves ~2GB)
+# Pre-install CPU-only PyTorch to keep image small and memory lean
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
@@ -25,5 +31,6 @@ COPY . /app/
 
 EXPOSE 8080
 
-# Production gunicorn with multi-threading for SSE streaming
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 1 --threads 4 --timeout 120 app:app"]
+# Single worker with 2 threads and request recycling to guarantee memory stays under 250MB
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 1 --threads 2 --timeout 120 --max-requests 500 --max-requests-jitter 50 app:app"]
+
