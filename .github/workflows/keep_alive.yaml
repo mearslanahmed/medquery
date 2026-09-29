@@ -1,0 +1,21 @@
+name: Keep MedQuery Awake (Free 24/7 Uptime)
+
+on:
+  schedule:
+    # Runs every 12 minutes (Render free tier sleeps after 15 min of zero traffic)
+    - cron: '*/12 * * * *'
+  workflow_dispatch:
+
+jobs:
+  heartbeat-ping:
+    name: Ping Health Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Keep-Alive Ping
+        env:
+          APP_URL: ${{ secrets.RENDER_APP_URL }}
+        run: |
+          TARGET_URL="${APP_URL:-https://medquery-chatbot.onrender.com}"
+          echo "Pinging keep-alive at: $TARGET_URL/api/health"
+          RESPONSE=$(curl -fsS -m 30 "$TARGET_URL/api/health" || echo "Ping dispatched")
+          echo "Server Response: $RESPONSE"

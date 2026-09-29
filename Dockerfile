@@ -26,6 +26,9 @@ RUN pip install --no-cache-dir --upgrade pip \
 COPY requirements.txt setup.py /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Pre-cache HuggingFace embeddings during docker build so container starts in <1 second (no network wait at runtime)
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
+
 # Copy source code (respecting .dockerignore)
 COPY . /app/
 

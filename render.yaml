@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: medquery
+    name: medquery-chatbot
     runtime: docker
     plan: free
     region: oregon

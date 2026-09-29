@@ -34,17 +34,30 @@ gc.collect()
 from src.agents import MedQueryMultiAgent
 
 index_name = "medquery"
-# Embed each chunk and upsert the embeddings into your Pinecone index
-docsearch = PineconeVectorStore.from_existing_index(
-    index_name=index_name,
-    embedding=embeddings
-)
+med_agent = None
 
-retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={"k": 3})
+def get_med_agent():
+    global med_agent
+    if med_agent is None:
+        try:
+            docsearch = PineconeVectorStore.from_existing_index(
+                index_name=index_name,
+                embedding=embeddings
+            )
+            retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={"k": 3})
+            med_agent = MedQueryMultiAgent(retriever)
+            gc.collect()
+        except Exception as e:
+            print(f"Error initializing Pinecone/Multi-Agent: {e}")
+            raise
+    return med_agent
 
-# Initialize Multi-Agent System (Triage + Clinical RAG + Safety Citation + Free Fallback)
-med_agent = MedQueryMultiAgent(retriever)
-gc.collect()
+# Eager warm-up attempt without blocking Flask startup
+try:
+    get_med_agent()
+except Exception as init_err:
+    print(f"Startup notice: Agent warm-up will retry on first request: {init_err}")
+
 
 @app.route("/")
 def index():
@@ -83,7 +96,8 @@ def api_chat():
                 chat_history.append(AIMessage(content=text))
         
         # Process through the multi-agent pipeline
-        result = med_agent.process_query(msg, chat_history)
+        agent = get_med_agent()
+        result = agent.process_query(msg, chat_history)
         
         return jsonify({
             "status": "success",
@@ -118,9 +132,11 @@ def api_chat_stream():
             elif role in ("assistant", "bot") and text:
                 chat_history.append(AIMessage(content=text))
 
+        agent = get_med_agent()
+
         def generate():
             try:
-                for event in med_agent.process_query_stream(msg, chat_history):
+                for event in agent.process_query_stream(msg, chat_history):
                     yield f"data: {json.dumps(event)}\n\n"
             except Exception as ex:
                 friendly_err = format_user_friendly_error(ex)
@@ -137,7 +153,8 @@ def chat():
     if not msg:
         return "Please provide a query."
     try:
-        result = med_agent.process_query(msg, [])
+        agent = get_med_agent()
+        result = agent.process_query(msg, [])
         return str(result.get("answer", ""))
     except Exception as e:
         return f"Error: {str(e)}"
