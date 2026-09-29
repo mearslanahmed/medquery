@@ -24,27 +24,28 @@ flowchart TD
     Client([HTTP / SSE Client]) --> Gateway[Gunicorn / Flask Reverse Proxy]
     Gateway --> Triage{Triage Agent}
     
-    Triage -- Off-Topic / Non-Clinical --> Refusal[Deterministic Domain Rejection]
-    Triage -- Clinical / Biomedical --> RAG[Clinical RAG Orchestrator]
+    Triage -->|Non-Medical| Refusal[Deterministic Medical Refusal]
+    Triage -->|Clinical Query| RAG[Clinical RAG Orchestrator]
     
-    subgraph Vector Knowledge Layer
-        Corpus[(Authoritative Medical Texts\n23,167 Chunks)] --> Index[(Pinecone Serverless Index\nCosine Metric, 384-d)]
+    subgraph KnowledgeLayer["Vector Knowledge Base"]
+        Corpus[("6 Medical Textbooks (23,167 Chunks)")] --> Index[("Pinecone Serverless (384-d Cosine)")]
     end
     
-    RAG <--> |Dense Semantic Search| Index
+    RAG -->|Semantic Query| Index
+    Index -->|Top-3 Context| RAG
     
-    subgraph Resilient Provider Pool
-        P1[Tier 1: Groq Cloud\nModel: openai/gpt-oss-120b]
-        P2[Tier 2: OpenRouter Gateway\nModel: google/gemma-4-31b-it]
-        P3[Tier 3: Google Generative AI\nModel: gemini-3.5-flash]
+    subgraph ProviderPool["Resilient Provider Pool"]
+        P1["Tier 1: Groq Cloud (gpt-oss-120b)"]
+        P2["Tier 2: OpenRouter Gateway (gemma-4-31b-it)"]
+        P3["Tier 3: Google Gemini (gemini-3.5-flash)"]
         
-        P1 -. Fallback on 429/5xx .-> P2
-        P2 -. Fallback on 429/5xx .-> P3
+        P1 -.->|429 Rate Limit| P2
+        P2 -.->|Network Failover| P3
     end
     
-    RAG <--> Resilient Provider Pool
+    RAG --> P1
     RAG --> Safety[Safety & Provenance Agent]
-    Safety --> ResponseStream([Server-Sent Events Stream + Citation Meta])
+    Safety --> ResponseStream([Server-Sent Events Stream + Citations])
 ```
 
 ---

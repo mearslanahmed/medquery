@@ -8,24 +8,28 @@ MedQuery is built as a pipeline of small, focused agents rather than one giant p
 flowchart TD
     UserQuery([User Input]) --> Triage[TriageAgent]
     
-    Triage -- Not Medical --> Reject[Polite Medical Refusal]
-    Triage -- Medical Question --> Rewriter[History-Aware Contextualizer]
+    Triage -->|Non-Medical| Reject[Polite Medical Refusal]
+    Triage -->|Medical Question| Rewriter[History-Aware Contextualizer]
     
     ChatHistory[(Chat History)] --> Rewriter
     
     Rewriter --> StandaloneQuery[Rewritten Standalone Query]
     
-    StandaloneQuery --> Pinecone[(Pinecone Index\n23,167 Passages)]
+    StandaloneQuery --> Pinecone[("Pinecone Index (23,167 Passages)")]
     Pinecone --> Docs[Top 3 Relevant Passages]
     
     Docs --> RAGAgent[Clinical RAG Agent]
     
-    subgraph Fallback Pool
-        Groq[Tier 1: Groq\ngpt-oss-120b] -->|429 Rate Limit| OpenRouter[Tier 2: OpenRouter\ngemma-4-31b]
-        OpenRouter -->|Outage / Network Error| Gemini[Tier 3: Gemini\n3.5 Flash]
+    subgraph FallbackPool["Resilient Provider Pool"]
+        Groq["Tier 1: Groq (gpt-oss-120b)"]
+        OpenRouter["Tier 2: OpenRouter (gemma-4-31b)"]
+        Gemini["Tier 3: Gemini (gemini-3.5-flash)"]
+        
+        Groq -.->|429 Rate Limit| OpenRouter
+        OpenRouter -.->|Outage / Network Error| Gemini
     end
     
-    RAGAgent <--> Fallback Pool
+    RAGAgent --> Groq
     Docs --> CitationAgent[Safety Citation Agent]
     
     RAGAgent --> AnswerStream([Text Stream])
