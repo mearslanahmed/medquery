@@ -10,4 +10,5 @@ langchain-google-genai
 langchain-openai
 langchain-groq
 pinecone
+gunicorn
 -e .
