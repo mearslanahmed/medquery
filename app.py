@@ -28,6 +28,8 @@ os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY or ""
 
 embeddings = download_hugging_face_embeddings()
 
+from src.agents import MedQueryMultiAgent
+
 index_name = "medquery"
 # Embed each chunk and upsert the embeddings into your Pinecone index
 docsearch = PineconeVectorStore.from_existing_index(
@@ -37,43 +39,8 @@ docsearch = PineconeVectorStore.from_existing_index(
 
 retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={"k": 3})
 
-chatModel = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash",
-    google_api_key=GEMINI_API_KEY
-)
-
-# 1. Contextualize Question Prompt for Conversational Memory
-# This reformulates follow-up queries (e.g., "What are its symptoms?") into standalone search queries for Pinecone
-contextualize_q_system_prompt = (
-    "Given a chat history and the latest user question "
-    "which might reference context in the chat history, "
-    "formulate a standalone question which can be understood "
-    "without the chat history. Do NOT answer the question, "
-    "just reformulate it if needed and otherwise return it as is."
-)
-contextualize_q_prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", contextualize_q_system_prompt),
-        MessagesPlaceholder("chat_history"),
-        ("human", "{input}"),
-    ]
-)
-
-history_aware_retriever = create_history_aware_retriever(
-    chatModel, retriever, contextualize_q_prompt
-)
-
-# 2. Answer Generation Prompt including chat history & retrieved medical context
-qa_prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", system_prompt),
-        MessagesPlaceholder("chat_history"),
-        ("human", "{input}"),
-    ]
-)
-
-question_answer_chain = create_stuff_documents_chain(chatModel, qa_prompt)
-rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
+# Initialize Multi-Agent System (Triage + Clinical RAG + Safety Citation + Free Fallback)
+med_agent = MedQueryMultiAgent(retriever)
 
 @app.route("/")
 def index():
@@ -83,7 +50,8 @@ def index():
 def health():
     return jsonify({
         "status": "healthy",
-        "model": "gemini-1.5-flash",
+        "system": "Multi-Agent Clinical Pipeline",
+        "providers": "Groq + OpenRouter + Gemini Fallback Pool",
         "index": index_name
     })
 
@@ -110,37 +78,13 @@ def api_chat():
             elif role in ("assistant", "bot") and text:
                 chat_history.append(AIMessage(content=text))
         
-        # Invoke history-aware retrieval and QA chain
-        response = rag_chain.invoke({
-            "input": msg,
-            "chat_history": chat_history
-        })
-        answer = response.get("answer", "No answer generated.")
-        
-        # Extract source citations from retrieved context documents
-        sources = []
-        raw_docs = response.get("context", [])
-        for doc in raw_docs:
-            source_path = doc.metadata.get("source", "Medical Reference Guide")
-            file_name = os.path.basename(source_path) if source_path else "Medical Reference"
-            page_num = doc.metadata.get("page")
-            
-            # PyPDF uses 0-indexed page numbers, convert to 1-indexed for humans
-            display_page = page_num + 1 if isinstance(page_num, int) else None
-            snippet = doc.page_content.strip()
-            if len(snippet) > 220:
-                snippet = snippet[:220] + "..."
-                
-            sources.append({
-                "file": file_name,
-                "page": display_page,
-                "snippet": snippet
-            })
+        # Process through the multi-agent pipeline
+        result = med_agent.process_query(msg, chat_history)
         
         return jsonify({
             "status": "success",
-            "answer": answer,
-            "sources": sources,
+            "answer": result["answer"],
+            "sources": result["sources"],
             "query": msg
         })
     except Exception as e:
@@ -172,33 +116,8 @@ def api_chat_stream():
 
         def generate():
             try:
-                sources_sent = False
-                for chunk in rag_chain.stream({"input": msg, "chat_history": chat_history}):
-                    # Stream context sources if available
-                    if "context" in chunk and not sources_sent:
-                        sources = []
-                        for doc in chunk["context"]:
-                            source_path = doc.metadata.get("source", "Medical Reference Guide")
-                            file_name = os.path.basename(source_path) if source_path else "Medical Reference"
-                            page_num = doc.metadata.get("page")
-                            display_page = page_num + 1 if isinstance(page_num, int) else None
-                            snippet = doc.page_content.strip()
-                            if len(snippet) > 220:
-                                snippet = snippet[:220] + "..."
-                            sources.append({
-                                "file": file_name,
-                                "page": display_page,
-                                "snippet": snippet
-                            })
-                        sources_sent = True
-                        yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
-
-                    # Stream answer tokens character-by-character / word-by-word
-                    if "answer" in chunk:
-                        token = chunk["answer"]
-                        yield f"data: {json.dumps({'type': 'token', 'token': token})}\n\n"
-
-                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                for event in med_agent.process_query_stream(msg, chat_history):
+                    yield f"data: {json.dumps(event)}\n\n"
             except Exception as ex:
                 friendly_err = format_user_friendly_error(ex)
                 yield f"data: {json.dumps({'type': 'error', 'error': friendly_err})}\n\n"
@@ -214,8 +133,8 @@ def chat():
     if not msg:
         return "Please provide a query."
     try:
-        response = rag_chain.invoke({"input": msg})
-        return str(response.get("answer", ""))
+        result = med_agent.process_query(msg, [])
+        return str(result.get("answer", ""))
     except Exception as e:
         return f"Error: {str(e)}"
 

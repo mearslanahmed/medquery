@@ -219,3 +219,9 @@ __marimo__/
 
 
 myenv/
+.agents/
+brag-output/
+ffmpeg.tgz
+skills-lock.json
+test.zip
+data/

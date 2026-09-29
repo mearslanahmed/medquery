@@ -6,38 +6,44 @@ from typing import List
 from langchain_core.documents import Document
 
 
-# Extract Data from PDF File
+# Extract Data from a single PDF File safely
+def load_single_pdf(file_path: str) -> List[Document]:
+    loader = PyPDFLoader(file_path)
+    return loader.load()
+
+
+# Extract Data from PDF Directory
 def load_pdf_file(data):
     loader = DirectoryLoader(data, glob="**/*.pdf", loader_cls=PyPDFLoader)
     documents = loader.load()
-
     return documents
 
 
 def filter_to_minimal_docs(docs: List[Document]) -> List[Document]:
     """
     Given a list of Document objects, return a new list of document objects
-    containing only 'source' in metadata and the original page_content.
+    preserving 'source' and 'page' in metadata and the original page_content.
     """
     minimal_docs: List[Document] = []
     for doc in docs:
         src = doc.metadata.get("source")
+        page = doc.metadata.get("page")
         minimal_docs.append(
             Document(
                 page_content=doc.page_content,
-                metadata={"source": src},
+                metadata={"source": src, "page": page},
             )
         )
     return minimal_docs
 
 
-# Split the doc into smaller chunks
-def text_split(minimal_docs):
+# Split the doc into smaller chunks with optimal medical context size
+def text_split(docs, chunk_size: int = 1000, chunk_overlap: int = 100):
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500,
-        chunk_overlap=20,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
     )
-    texts_chunk = text_splitter.split_documents(minimal_docs)
+    texts_chunk = text_splitter.split_documents(docs)
     return texts_chunk
 
 
