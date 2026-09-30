@@ -44,7 +44,11 @@ def get_med_agent():
                 index_name=index_name,
                 embedding=embeddings
             )
-            retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={"k": 3})
+            # Fetch top-10 candidates from Pinecone (wide net).
+            # CrossEncoderReranker in MedQueryMultiAgent will score all 10
+            # with a cross-encoder and return only the best 3 to the LLM.
+            # Net result: same token cost, but much higher retrieval precision.
+            retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={"k": 10})
             med_agent = MedQueryMultiAgent(retriever)
             gc.collect()
         except Exception as e:

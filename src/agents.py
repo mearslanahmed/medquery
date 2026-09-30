@@ -3,8 +3,13 @@ import json
 from typing import List, Dict, Any, Generator
 from dotenv import load_dotenv
 
+import torch
+torch.set_num_threads(1)  # Prevent torch from spawning too many threads on CPU
+
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.documents import Document
 from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -14,6 +19,7 @@ try:
 except ImportError:
     from langchain.chains import create_retrieval_chain, create_history_aware_retriever
     from langchain.chains.combine_documents import create_stuff_documents_chain
+from sentence_transformers import CrossEncoder
 
 from src.prompt import system_prompt
 
@@ -78,7 +84,87 @@ def get_resilient_llm():
     return primary
 
 
-# 2. AGENT 1: TRIAGE & DOMAIN GUARD AGENT
+# 2. CROSS-ENCODER RERANKER
+#
+# HOW IT WORKS:
+#   Standard Pinecone vector search uses a bi-encoder: it embeds the query
+#   and every chunk into separate 384-dim vectors and measures cosine distance.
+#   The problem is that the query and chunk are encoded independently — the
+#   model never sees them together, so it misses subtle negations, drug
+#   contraindications, and clinical nuances.
+#
+#   A cross-encoder solves this by feeding [query + chunk] through a BERT-style
+#   model TOGETHER with full cross-attention between both texts. This is much
+#   more accurate but slower — which is why we only run it on a small candidate
+#   set (top-10 from Pinecone) rather than all 23,000+ chunks.
+#
+# ARCHITECTURE: Two-Stage Retrieval
+#   Stage 1 (Fast, Wide):  Pinecone vector search -> top-10 candidates (~30ms)
+#   Stage 2 (Slow, Precise): CrossEncoder scores each pair -> keep top-3 (~40ms)
+#
+# MODEL CHOSEN: cross-encoder/ms-marco-MiniLM-L-6-v2
+#   Trained on Microsoft MARCO (a massive passage retrieval dataset).
+#   Only 22MB. Runs in ~40ms on CPU for 10 passages.
+#   Returns a raw relevance logit score (higher = more relevant).
+
+class CrossEncoderReranker(BaseRetriever):
+    """
+    LangChain-compatible retriever that wraps a two-stage pipeline:
+      1. Fetch top-k_retrieve candidates from an upstream retriever (Pinecone).
+      2. Score each (query, passage) pair with a CrossEncoder model.
+      3. Return the top-k_rerank highest-scored passages.
+
+    This improves retrieval precision significantly vs. raw vector similarity,
+    especially for clinical questions with specific contraindications or negations.
+    """
+    base_retriever: Any
+    k_rerank: int = 3
+    model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    _model: Any = None
+
+    class Config:
+        arbitrary_types_allowed = True
+
+    def _get_model(self) -> CrossEncoder:
+        # Lazy-load the model once on first use (avoids startup memory spike)
+        if self._model is None:
+            object.__setattr__(
+                self, '_model',
+                CrossEncoder(self.model_name, max_length=512)
+            )
+        return self._model
+
+    def _get_relevant_documents(self, query: str) -> List[Document]:
+        """
+        Full two-stage retrieval:
+          1. Ask Pinecone for top-k_retrieve candidates (wide net).
+          2. Build (query, passage_text) pairs.
+          3. CrossEncoder scores all pairs simultaneously in one forward pass.
+          4. Sort by score descending, return top k_rerank.
+        """
+        # Stage 1: get candidates from Pinecone (k is set on the retriever itself)
+        candidates: List[Document] = self.base_retriever.get_relevant_documents(query)
+
+        if not candidates:
+            return []
+
+        model = self._get_model()
+
+        # Stage 2: build (query, chunk_text) pairs and score them
+        pairs = [(query, doc.page_content) for doc in candidates]
+        # model.predict() runs one BERT forward pass over all pairs at once
+        scores = model.predict(pairs)  # returns a numpy array of floats
+
+        # Zip scores with documents, sort descending by score, return top k_rerank
+        scored = sorted(zip(scores, candidates), key=lambda x: x[0], reverse=True)
+        return [doc for _, doc in scored[:self.k_rerank]]
+
+    async def _aget_relevant_documents(self, query: str) -> List[Document]:
+        # Async fallback — just wraps the sync version for compatibility
+        return self._get_relevant_documents(query)
+
+
+# 3. AGENT 1: TRIAGE & DOMAIN GUARD AGENT
 
 class TriageAgent:
     """
@@ -110,12 +196,17 @@ class TriageAgent:
             return True
 
 
-# 3. AGENT 2: CLINICAL RAG AGENT
+# 4. AGENT 2: CLINICAL RAG AGENT
 
 class ClinicalRAGAgent:
     """
     Performs history-aware conversational query reformulation,
-    queries the Pinecone medical index, and synthesizes clinical answers.
+    queries the Pinecone medical index via two-stage retrieval (Pinecone
+    bi-encoder -> CrossEncoder reranker), and synthesizes clinical answers.
+
+    The retriever passed in should already be a CrossEncoderReranker wrapping
+    the raw Pinecone retriever so that only the most relevant k chunks
+    reach the LLM.
     """
     def __init__(self, llm, retriever):
         self.llm = llm
@@ -156,7 +247,7 @@ class ClinicalRAGAgent:
             "chat_history": chat_history
         })
 
-# 4. AGENT 3: CLINICAL SAFETY & CITATION AGENT
+# 5. AGENT 3: CLINICAL SAFETY & CITATION AGENT
 
 class SafetyCitationAgent:
     """
@@ -187,7 +278,7 @@ class SafetyCitationAgent:
         return sources
 
 
-# 5. MULTI-AGENT ORCHESTRATOR
+# 6. MULTI-AGENT ORCHESTRATOR
 class MedQueryMultiAgent:
     """
     Unified multi-agent orchestrator:
@@ -199,7 +290,15 @@ class MedQueryMultiAgent:
     def __init__(self, retriever):
         self.llm = get_resilient_llm()
         self.triage_agent = TriageAgent(self.llm)
-        self.clinical_rag_agent = ClinicalRAGAgent(self.llm, retriever)
+        # Wrap the raw Pinecone retriever with the CrossEncoder reranker.
+        # The raw retriever should already be configured to fetch k_retrieve=10
+        # candidates (set in app.py). The reranker will then score all 10 and
+        # return only the best 3 to the LLM — better quality, same token cost.
+        reranked_retriever = CrossEncoderReranker(
+            base_retriever=retriever,
+            k_rerank=3
+        )
+        self.clinical_rag_agent = ClinicalRAGAgent(self.llm, reranked_retriever)
         self.safety_agent = SafetyCitationAgent()
     def process_query(self, user_query: str, chat_history: List[BaseMessage]) -> Dict[str, Any]:
         # Step 1: Triage domain check
